@@ -47,7 +47,7 @@ class Start(object):
     authresponse.exposed = True
 
 
-cherrypy.config.update({'server.socket_host': '127.0.0.1',})
+cherrypy.config.update({'server.socket_host': '0.0.0.0',})
 cherrypy.config.update({'server.socket_port': int(os.environ.get('PORT', '3000')),})
 print('Open http://localhost:3000 to login in amazon alexa service')
 cherrypy.quickstart(Start())
