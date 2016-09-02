@@ -9,10 +9,10 @@ if [ ! -d respeaker ]; then
     echo 'not found respeaker python library, get it from https://github.com/respeaker/respeaker_python_library'
     git clone https://github.com/respeaker/respeaker_python_library.git
     mv respeaker_python_library/respeaker respeaker
-fi
 
-echo 'Install required python packages'
-pip install -r requirements.txt
+    echo 'Install required python packages'
+    pip install -r requirements.txt
+fi
 
 cd $CURRENT_DIR
 
