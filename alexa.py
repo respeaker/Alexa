@@ -41,12 +41,14 @@ def gettoken():
         return False
 
 
-def alexa(audio):
-    global response_mp3
+def gen(audio, boundary):
 
-    url = 'https://access-alexa-na.amazon.com/v1/avs/speechrecognizer/recognize'
-    headers = {'Authorization': 'Bearer %s' % gettoken()}
-    # Set parameters to Alexa request for our audio recording
+    chunk = '--%s\r\n' % boundary
+    chunk += (
+        'Content-Disposition: form-data; name="request"\r\n'
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n'
+    )
+
     d = {
         "messageHeader": {
             "deviceContext": [{
@@ -66,12 +68,36 @@ def alexa(audio):
         }
     }
 
-    print('Send audio to alexa')
-    files = [
-        ('file', ('request', json.dumps(d), 'application/json; charset=UTF-8')),
-        ('file', ('audio', audio, 'audio/L16; rate=16000; channels=1'))
-    ]
-    r = requests.post(url, headers=headers, files=files)
+    yield chunk + json.dumps(d) + '\r\n'
+
+    chunk = '--%s\r\n' % boundary
+    chunk += (
+        'Content-Disposition: form-data; name="audio"\r\n'
+        'Content-Type: audio/L16; rate=16000; channels=1\r\n\r\n'
+    )
+
+    yield chunk
+
+    for a in audio:
+        yield a
+
+    yield '--%s--\r\n' % boundary
+
+
+def alexa(audio):
+    global response_mp3
+
+    url = 'https://access-alexa-na.amazon.com/v1/avs/speechrecognizer/recognize'
+    # headers = {'Authorization': 'Bearer %s' % gettoken()}
+
+    boundary = 'this-is-a-boundary'
+    headers = {
+        'Authorization': 'Bearer %s' % gettoken(),
+        'Content-Type': 'multipart/form-data; boundary=%s' % boundary,
+        'Transfer-Encoding': 'chunked'
+    }
+
+    r = requests.post(url, headers=headers, data=gen(audio, boundary))
 
     if r.status_code == 200:
         print "Debug: Alexa provided a response"
@@ -111,7 +137,6 @@ def main():
         if mic.detect(keyword='alexa'):
             print('wakeup')
             data = mic.listen()
-            data = b''.join(data)
             if data:
                 alexa(data)
 
