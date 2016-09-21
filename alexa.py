@@ -1,6 +1,5 @@
 import json
 import os
-import os.path
 import platform
 import re
 import time
@@ -134,7 +133,7 @@ def main():
     mic = Microphone(pa)
 
     while not quit_event.is_set():
-        if mic.detect(keyword='alexa'):
+        if mic.wakeup(keyword='alexa'):
             print('wakeup')
             data = mic.listen()
             if data:
@@ -152,7 +151,7 @@ if __name__ == '__main__':
         except KeyboardInterrupt:
             print('\nquit')
             quit_event.set()
-            mic.interrupt(True, True)
+            mic.quit()
             break
 
     thread.join()
