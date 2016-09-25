@@ -21,8 +21,7 @@ To use Alexe Voice Service with ReSpeaker. It's based on [AlexaPi](https://githu
 
     It will redirect you to Amazon to sign in.
 
-6. Run `export POCKETSPHINX_DATA=$(pwd)/pocketsphinx-data` to set environment variable `POCKETSPHINX_DATA`, which is used by [ReSpeaker python library](https://github.com/respeaker/respeaker_python_library) to find pocketsphinx data
-7. Run `python alexa.py` to interact with Alexa.
+6. Run `python alexa.py` to interact with Alexa.
 
 
 ### On ReSpeaker
@@ -41,8 +40,7 @@ If you get it work on Ubuntu, you can use the previous `creds.py` and skip step 
 
     It will redirect you to Amazon to sign in.
 
-6. Run `export POCKETSPHINX_DATA=$(pwd)/pocketsphinx-data` to set environment variable `POCKETSPHINX_DATA`, which is used by [ReSpeaker python library](https://github.com/respeaker/respeaker_python_library) to find pocketsphinx data
-7. Run `python alexa.py` to interact with Alexa.
+6. Run `python alexa.py` to interact with Alexa.
 
 
 

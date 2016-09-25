@@ -1,47 +1,49 @@
-import json
 import os
-import platform
 import re
 import time
+import json
+import platform
 from threading import Event, Thread
-
-import pyaudio
 import requests
 
-from creds import *
-from respeaker import Microphone
-
-# Avoid warning about insure request
-# requests.packages.urllib3.disable_warnings(InsecurePlatformWarning)
+from creds import Client_ID, Client_Secret, refresh_token
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-response_mp3 = os.path.join(script_dir, 'response.mp3')
+os.environ['POCKETSPHINX_DATA'] = os.path.join(script_dir, 'pocketsphinx-data')
 
+from respeaker import Microphone
+
+
+response_mp3 = os.path.join(script_dir, 'response.mp3')
 token = None
 
 
 # Get Alexa Token
-def gettoken():
+def get_token():
     global token
-    refresh = refresh_token
+
     if token:
         return token
-    elif refresh:
+    else:
         payload = {
-            "client_id": Client_ID, "client_secret": Client_Secret, "refresh_token": refresh,
+            "client_id": Client_ID,
+            "client_secret": Client_Secret,
+            "refresh_token": refresh_token,
             "grant_type": "refresh_token",
         }
         url = "https://api.amazon.com/auth/o2/token"
         r = requests.post(url, data=payload)
         resp = json.loads(r.text)
         token = resp['access_token']
+
+        line = 'token = "{}"\n'.format(token)
+        with open("creds.py", 'a') as f:
+            f.write(line)
         return token
-    else:
-        return False
 
 
-def gen(audio, boundary):
-
+def generate(audio, boundary):
+    print('sending data')
     chunk = '--%s\r\n' % boundary
     chunk += (
         'Content-Disposition: form-data; name="request"\r\n'
@@ -81,6 +83,7 @@ def gen(audio, boundary):
         yield a
 
     yield '--%s--\r\n' % boundary
+    print('done')
 
 
 def alexa(audio):
@@ -91,16 +94,17 @@ def alexa(audio):
 
     boundary = 'this-is-a-boundary'
     headers = {
-        'Authorization': 'Bearer %s' % gettoken(),
+        'Authorization': 'Bearer %s' % get_token(),
         'Content-Type': 'multipart/form-data; boundary=%s' % boundary,
         'Transfer-Encoding': 'chunked'
     }
 
-    r = requests.post(url, headers=headers, data=gen(audio, boundary))
+    print('Post')
+    r = requests.post(url, headers=headers, data=generate(audio, boundary))
+    print 'Reading response'
 
     if r.status_code == 200:
         print "Debug: Alexa provided a response"
-
         for v in r.headers['content-type'].split(";"):
             if re.match('.*boundary.*', v):
                 boundary = v.split("=")[1]
@@ -109,49 +113,44 @@ def alexa(audio):
             if len(d) >= 1024:
                 audio = d.split('\r\n\r\n')[1].rstrip('--')
 
-        # Write response audio to response.mp3 may or may not be played later
-        with open(response_mp3, 'wb') as f:
-            print('Save response audio to %s' % response_mp3)
-            f.write(audio)
-            f.close()
-            if platform.machine() == 'mips':
-                os.system('madplay ' + response_mp3)
-            else:
-                os.system('mpg123 ' + response_mp3)
+                # Write response audio to response.mp3 may or may not be played later
+                with open(response_mp3, 'wb') as f:
+                    print('Save response audio to %s' % response_mp3)
+                    f.write(audio)
+                    f.close()
+                    if platform.machine() == 'mips':
+                        os.system('madplay ' + response_mp3)
+                    else:
+                        os.system('mpg123 ' + response_mp3)
     else:
         print "Debug: Alexa threw an error with code: ", r.status_code
 
 
-mic = None
-quit_event = Event()
-
-
-def main():
-    global mic, quit_event
-
-    pa = pyaudio.PyAudio()
-    mic = Microphone(pa)
+def task(quit_event):
+    mic = Microphone(quit_event=quit_event)
 
     while not quit_event.is_set():
         if mic.wakeup(keyword='alexa'):
             print('wakeup')
             data = mic.listen()
-            if data:
-                alexa(data)
+            alexa(data)
 
     mic.close()
 
 
-if __name__ == '__main__':
-    thread = Thread(target=main)
+def main():
+    quit_event = Event()
+    thread = Thread(target=task, args=(quit_event,))
     thread.start()
     while True:
         try:
             time.sleep(1)
         except KeyboardInterrupt:
-            print('\nquit')
+            print('Quit')
             quit_event.set()
-            mic.quit()
             break
 
     thread.join()
+
+if __name__ == '__main__':
+    main()
