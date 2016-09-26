@@ -36,9 +36,10 @@ def get_token():
         resp = json.loads(r.text)
         token = resp['access_token']
 
-        line = 'token = "{}"\n'.format(token)
-        with open("creds.py", 'a') as f:
-            f.write(line)
+        # line = '\ntoken = "{}"\n'.format(token)
+        # with open("creds.py", 'a') as f:
+        #     f.write(line)
+
         return token
 
 
@@ -100,7 +101,7 @@ def alexa(audio):
     }
 
     print('Post')
-    r = requests.post(url, headers=headers, data=generate(audio, boundary))
+    r = requests.post(url, headers=headers, data=generate(audio, boundary), timeout=60)
     print 'Reading response'
 
     if r.status_code == 200:
@@ -119,7 +120,7 @@ def alexa(audio):
                     f.write(audio)
                     f.close()
                     if platform.machine() == 'mips':
-                        os.system('madplay ' + response_mp3)
+                        os.system('madplay -o wave:- ' + response_mp3 + ' | aplay -M')
                     else:
                         os.system('mpg123 ' + response_mp3)
     else:
@@ -133,7 +134,11 @@ def task(quit_event):
         if mic.wakeup(keyword='alexa'):
             print('wakeup')
             data = mic.listen()
-            alexa(data)
+            try:
+                alexa(data)
+            except Exception as e:
+                print('Something wrong when connecting to Alexa Voice Service: %s' % e.message)
+                pass
 
     mic.close()
 
