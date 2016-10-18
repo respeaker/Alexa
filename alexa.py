@@ -7,14 +7,10 @@ from threading import Event, Thread
 import requests
 
 from creds import Client_ID, Client_Secret, refresh_token
-
-script_dir = os.path.dirname(os.path.realpath(__file__))
-os.environ['POCKETSPHINX_DATA'] = os.path.join(script_dir, 'pocketsphinx-data')
-
 from respeaker import Microphone
 
 
-response_mp3 = os.path.join(script_dir, 'response.mp3')
+response_mp3 = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'response.mp3')
 token = None
 
 
