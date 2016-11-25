@@ -1,46 +1,34 @@
 import os
 import re
 import time
+from monotonic import monotonic
 import json
 import platform
 from threading import Event, Thread
+import logging
+
 import requests
 
 from creds import Client_ID, Client_Secret, refresh_token
 from respeaker import Microphone
 
 
+logging.basicConfig(level=logging.DEBUG)
+
 response_mp3 = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'response.mp3')
-token = None
-
-
-# Get Alexa Token
-def get_token():
-    global token
-
-    if token:
-        return token
-    else:
-        payload = {
-            "client_id": Client_ID,
-            "client_secret": Client_Secret,
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token",
-        }
-        url = "https://api.amazon.com/auth/o2/token"
-        r = requests.post(url, data=payload)
-        resp = json.loads(r.text)
-        token = resp['access_token']
-
-        # line = '\ntoken = "{}"\n'.format(token)
-        # with open("creds.py", 'a') as f:
-        #     f.write(line)
-
-        return token
 
 
 def generate(audio, boundary):
-    print('sending data')
+    """
+    Generate a iterator for chunked transfer-encoding request of Alexa Voice Service
+    Args:
+        audio: raw 16 bit LSB audio data
+        boundary: boundary of multipart content
+
+    Returns:
+
+    """
+    logging.debug('Start sending speech to Alexa Voice Service')
     chunk = '--%s\r\n' % boundary
     chunk += (
         'Content-Disposition: form-data; name="request"\r\n'
@@ -80,28 +68,54 @@ def generate(audio, boundary):
         yield a
 
     yield '--%s--\r\n' % boundary
-    print('done')
+    logging.debug('Finished sending speech to Alexa Voice Service')
 
 
-def alexa(audio):
-    global response_mp3
+class Alexa:
+    """
+    Provide Alexa Voice Service based on API v1
+    """
+    def __init__(self):
+        self.access_token = None
+        self.expire_time = None
+        self.session = requests.Session()
 
-    url = 'https://access-alexa-na.amazon.com/v1/avs/speechrecognizer/recognize'
-    # headers = {'Authorization': 'Bearer %s' % gettoken()}
+    def get_token(self):
+        if self.expire_time is None or monotonic() > self.expire_time:
+            # get an access token using OAuth
+            credential_url = "https://api.amazon.com/auth/o2/token"
+            data = {
+                "client_id": Client_ID,
+                "client_secret": Client_Secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            }
+            start_time = monotonic()
+            r = self.session.post(credential_url, data=data)
 
-    boundary = 'this-is-a-boundary'
-    headers = {
-        'Authorization': 'Bearer %s' % get_token(),
-        'Content-Type': 'multipart/form-data; boundary=%s' % boundary,
-        'Transfer-Encoding': 'chunked'
-    }
+            if r.status_code != 200:
+                raise Exception("Failed to get token. HTTP status code {}".format(r.status_code))
 
-    print('Post')
-    r = requests.post(url, headers=headers, data=generate(audio, boundary), timeout=60)
-    print 'Reading response'
+            credentials = r.json()
+            self.access_token = credentials["access_token"]
+            self.expire_time = start_time + float(credentials["expires_in"])
 
-    if r.status_code == 200:
-        print "Debug: Alexa provided a response"
+        return self.access_token
+
+    def recognize(self, data):
+        url = 'https://access-alexa-na.amazon.com/v1/avs/speechrecognizer/recognize'
+        boundary = 'this-is-a-boundary'
+        headers = {
+            'Authorization': 'Bearer %s' % self.get_token(),
+            'Content-Type': 'multipart/form-data; boundary=%s' % boundary,
+            'Transfer-Encoding': 'chunked',
+        }
+
+        r = self.session.post(url, headers=headers, data=generate(data, boundary), timeout=60)
+        if r.status_code != 200:
+            raise Exception("Failed to recognize. HTTP status code {}".format(r.status_code))
+
+        logging.debug("Alexa provided a response")
         for v in r.headers['content-type'].split(";"):
             if re.match('.*boundary.*', v):
                 boundary = v.split("=")[1]
@@ -119,22 +133,20 @@ def alexa(audio):
                         os.system('madplay -o wave:- ' + response_mp3 + ' | aplay -M')
                     else:
                         os.system('mpg123 ' + response_mp3)
-    else:
-        print "Debug: Alexa threw an error with code: ", r.status_code
 
 
 def task(quit_event):
     mic = Microphone(quit_event=quit_event)
+    alexa = Alexa()
 
     while not quit_event.is_set():
         if mic.wakeup(keyword='alexa'):
-            print('wakeup')
+            logging.debug('wakeup')
             data = mic.listen()
             try:
-                alexa(data)
+                alexa.recognize(data)
             except Exception as e:
-                print('Something wrong when connecting to Alexa Voice Service: %s' % e.message)
-                pass
+                logging.warn(e.message)
 
     mic.close()
 
@@ -147,11 +159,12 @@ def main():
         try:
             time.sleep(1)
         except KeyboardInterrupt:
-            print('Quit')
-            quit_event.set()
             break
 
+    quit_event.set()
     thread.join()
+    logging.debug('Mission completed')
+
 
 if __name__ == '__main__':
     main()
