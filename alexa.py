@@ -5,6 +5,8 @@ from monotonic import monotonic
 import json
 import platform
 from threading import Event, Thread
+import subprocess
+import tempfile
 import logging
 
 import requests
@@ -14,8 +16,6 @@ from respeaker import Microphone
 
 
 logging.basicConfig(level=logging.DEBUG)
-
-response_mp3 = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'response.mp3')
 
 
 def generate(audio, boundary):
@@ -124,15 +124,16 @@ class Alexa:
             if len(d) >= 1024:
                 audio = d.split('\r\n\r\n')[1].rstrip('--')
 
-                # Write response audio to response.mp3 may or may not be played later
-                with open(response_mp3, 'wb') as f:
-                    print('Save response audio to %s' % response_mp3)
+                if platform.machine() == 'mips':
+                    command = 'madplay -O wave:- - | aplay -M'
+                else:
+                    command = 'mpg123 -'
+
+                with tempfile.SpooledTemporaryFile() as f:
                     f.write(audio)
-                    f.close()
-                    if platform.machine() == 'mips':
-                        os.system('madplay -o wave:- ' + response_mp3 + ' | aplay -M')
-                    else:
-                        os.system('mpg123 ' + response_mp3)
+                    f.seek(0)
+                    p = subprocess.Popen(command, stdin=f, shell=True)
+                    p.wait()
 
 
 def task(quit_event):
