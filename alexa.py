@@ -8,6 +8,7 @@ from threading import Event, Thread
 import subprocess
 import tempfile
 import logging
+from contextlib import closing
 
 import requests
 
@@ -102,7 +103,7 @@ class Alexa:
 
         return self.access_token
 
-    def recognize(self, data):
+    def recognize(self, audio):
         url = 'https://access-alexa-na.amazon.com/v1/avs/speechrecognizer/recognize'
         boundary = 'this-is-a-boundary'
         headers = {
@@ -110,25 +111,49 @@ class Alexa:
             'Content-Type': 'multipart/form-data; boundary=%s' % boundary,
             'Transfer-Encoding': 'chunked',
         }
+        data = generate(audio, boundary)
+        with closing(self.session.post(url, headers=headers, data=data, timeout=60, stream=True)) as r:
+            if r.status_code != 200:
+                raise Exception("Failed to recognize. HTTP status code {}".format(r.status_code))
 
-        r = self.session.post(url, headers=headers, data=generate(data, boundary), timeout=60)
-        if r.status_code != 200:
-            raise Exception("Failed to recognize. HTTP status code {}".format(r.status_code))
+            for v in r.headers['content-type'].split(";"):
+                if re.match('.*boundary.*', v):
+                    boundary = v.split("=")[1]
 
-        logging.debug("Alexa provided a response")
-        for v in r.headers['content-type'].split(";"):
-            if re.match('.*boundary.*', v):
-                boundary = v.split("=")[1]
-        data = r.content.split(boundary)
-        for d in data:
-            if len(d) >= 1024:
-                audio = d.split('\r\n\r\n')[1].rstrip('--')
+            if not boundary:
+                logging.warn('No boundary is found in headers')
+                return
 
-                if platform.machine() == 'mips':
-                    command = 'madplay -O wave:- - | aplay -M'
-                else:
-                    command = 'mpg123 -'
+            content = r.iter_content(chunk_size=4096)
+            prefix = next(content)
+            position = prefix.find(boundary, len(boundary))   # skip first boundary
+            if position < 0:
+                logging.warn('No boundary is found. Invalid format')
+                return
 
+            start = position + len(boundary) + 2              # boundary + cr + lf
+            speech = prefix[start:]
+
+            if platform.machine() == 'mips':
+                command = 'madplay -o wave:- - | aplay -M'
+            else:
+                command = 'ffplay -autoexit -nodisp -'
+
+            if 1:
+                p = subprocess.Popen(command, stdin=subprocess.PIPE, shell=True)
+                p.stdin.write(speech)
+                for speech in content:
+                    p.stdin.write(speech)
+
+                p.stdin.close()
+                p.wait()
+
+            else:
+                audio = prefix[start:]
+                for c in content:
+                    audio += c
+
+                print(len(audio))
                 with tempfile.SpooledTemporaryFile() as f:
                     f.write(audio)
                     f.seek(0)
