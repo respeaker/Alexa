@@ -10,6 +10,10 @@ To use Alexe Voice Service with ReSpeaker. It's based on [AlexaPi](https://githu
 + [ReSpeaker python library](https://github.com/respeaker/respeaker_python_library)
 + webrtcvad - for Voice Activity Detection, available on ReSpeaker by default
 + PocketSphinx - for Keyword Spotting, available on ReSpeaker
++ ffplay, part of [ffmpeg](https://ffmpeg.org/download.html)
+
+
+
 
 ### On Ubuntu
 
