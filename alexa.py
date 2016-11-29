@@ -139,26 +139,13 @@ class Alexa:
             else:
                 command = 'ffplay -autoexit -nodisp -'
 
-            if 1:
-                p = subprocess.Popen(command, stdin=subprocess.PIPE, shell=True)
+            p = subprocess.Popen(command, stdin=subprocess.PIPE, shell=True)
+            p.stdin.write(speech)
+            for speech in content:
                 p.stdin.write(speech)
-                for speech in content:
-                    p.stdin.write(speech)
 
-                p.stdin.close()
-                p.wait()
-
-            else:
-                audio = prefix[start:]
-                for c in content:
-                    audio += c
-
-                print(len(audio))
-                with tempfile.SpooledTemporaryFile() as f:
-                    f.write(audio)
-                    f.seek(0)
-                    p = subprocess.Popen(command, stdin=f, shell=True)
-                    p.wait()
+            p.stdin.close()
+            p.wait()
 
 
 def task(quit_event):
