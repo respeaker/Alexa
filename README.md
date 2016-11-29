@@ -41,7 +41,7 @@ If you get it work on Ubuntu, you can use the previous `creds.py` and skip step 
 
 2. Run `cd /Media/SD-P1 && git clone https://github.com/respeaker/Alexa.git && cd Alexa`
 3. Rename `example_creds.py` to `creds.py` and fill `ProductID`, `Security_Profile_Description`, `Security_Profile_ID`, `Client_ID` and `Client_Secret` with your Alexa device information.
-4. Run `pip install cherrypy requests respeaker` to get required python packages.
+4. Run `pip install cherrypy` to get required python packages.
 5. Run `python auth_web.py`, connect to ReSpeaker's AP and open http://192.168.100.1:3000
 
     It will redirect you to Amazon to sign in.
