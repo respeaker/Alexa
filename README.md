@@ -1,7 +1,8 @@
 Alexa
 =====
 
-To use Alexe Voice Service with ReSpeaker. It's based on [AlexaPi](https://github.com/sammachin/AlexaPi).
+To use Alexe Voice Service with ReSpeaker.
+
 
 ### Requirements
 + CherryPy
@@ -11,8 +12,6 @@ To use Alexe Voice Service with ReSpeaker. It's based on [AlexaPi](https://githu
 + webrtcvad - for Voice Activity Detection, available on ReSpeaker by default
 + PocketSphinx - for Keyword Spotting, available on ReSpeaker
 + ffplay, part of [ffmpeg](https://ffmpeg.org/download.html)
-
-
 
 
 ### On Ubuntu
@@ -49,4 +48,5 @@ If you get it work on Ubuntu, you can use the previous `creds.py` and skip step 
 6. Run `python alexa.py` to interact with Alexa.
 
 
-
+### Credits
++ [AlexaPi](https://github.com/sammachin/AlexaPi).
