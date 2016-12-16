@@ -28,24 +28,25 @@ To use Alexe Voice Service with ReSpeaker.
 
 
 ### On ReSpeaker
+Alexa will be installed at the lasest firmware of ReSpeaker. If the command `alexa` is available, skip step 1.
 
-The respeaker python library requires 1.2M storage.
-If the on-board flash doesn't have enough space,
-we can use virtualenv to install python packages on a SD card.
-If you get it work on Ubuntu, you can use the previous `creds.py` and skip step 3 and step 5.
+1. Download alexa ipk and install it.
 
-1. [Register for an Amazon Developer Account](https://github.com/alexa/alexa-avs-raspberry-pi#61---register-your-product-and-create-a-security-profile). Make sure Web Settings look like the picture:
+  ```
+  cd /tmp
+  wget https://github.com/respeaker/get_started_with_respeaker/raw/master/files/alexa_2016-12-16_ramips_24kec.ipk
+  opkg install alexa_2016-12-16_ramips_24kec.ipk
+  ```
 
-    ![](doc/alexa_web_settings.png)
+2. Run `alexa` or `/etc/init.d/alexa start` to start Alexa Voice Service
 
-2. Run `cd /Media/SD-P1 && git clone https://github.com/respeaker/Alexa.git && cd Alexa`
-3. Rename `example_creds.py` to `creds.py` and fill `ProductID`, `Security_Profile_Description`, `Security_Profile_ID`, `Client_ID` and `Client_Secret` with your Alexa device information.
-4. Run `pip install cherrypy` to get required python packages.
-5. Run `python auth_web.py`, connect to ReSpeaker's AP and open http://192.168.100.1:3000
+  If got an error "IOError: [Errno -9996] Invalid input device (no default output device)", it may be alexa already runs in the background (`/etc/init.d/alexa stop` will stop it)
 
-    It will redirect you to Amazon to sign in.
+3. At the first time, you need to autherize the application.
 
-6. Run `python alexa.py` to interact with Alexa.
+  Connect ReSpeaker's Access Point, go to [http://192.168.100.1:3000]([http://192.168.100.1:3000) and tt will redirect you to Amazon to sign up or login in.
+
+4. Run `python alexa.py` to interact with Alexa.
 
 
 ### Credits
