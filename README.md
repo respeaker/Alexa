@@ -48,6 +48,8 @@ Alexa will be installed at the lasest firmware of ReSpeaker. If the command `ale
 
 4. Run `python alexa.py` to interact with Alexa.
 
+>Note: if you get error `IOError: [Errno -9998] Invalid number of channels`, It's likely that `mopidy-hallo` is running and using the audio input channel.
+>You can stop `mopidy` by running `/etc/init.d/mopidy stop`. `/etc/init.d/mopidy disable` will disable it to auto-run.
 
 ### Credits
 + [AlexaPi](https://github.com/sammachin/AlexaPi).
