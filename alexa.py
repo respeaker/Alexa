@@ -6,7 +6,7 @@ import json
 import platform
 from threading import Event, Thread
 import subprocess
-import tempfile
+import types
 import logging
 from contextlib import closing
 
@@ -17,59 +17,6 @@ from respeaker import Microphone
 
 
 logging.basicConfig(level=logging.DEBUG)
-
-
-def generate(audio, boundary):
-    """
-    Generate a iterator for chunked transfer-encoding request of Alexa Voice Service
-    Args:
-        audio: raw 16 bit LSB audio data
-        boundary: boundary of multipart content
-
-    Returns:
-
-    """
-    logging.debug('Start sending speech to Alexa Voice Service')
-    chunk = '--%s\r\n' % boundary
-    chunk += (
-        'Content-Disposition: form-data; name="request"\r\n'
-        'Content-Type: application/json; charset=UTF-8\r\n\r\n'
-    )
-
-    d = {
-        "messageHeader": {
-            "deviceContext": [{
-                "name": "playbackState",
-                "namespace": "AudioPlayer",
-                "payload": {
-                    "streamId": "",
-                    "offsetInMilliseconds": "0",
-                    "playerActivity": "IDLE"
-                }
-            }]
-        },
-        "messageBody": {
-            "profile": "alexa-close-talk",
-            "locale": "en-us",
-            "format": "audio/L16; rate=16000; channels=1"
-        }
-    }
-
-    yield chunk + json.dumps(d) + '\r\n'
-
-    chunk = '--%s\r\n' % boundary
-    chunk += (
-        'Content-Disposition: form-data; name="audio"\r\n'
-        'Content-Type: audio/L16; rate=16000; channels=1\r\n\r\n'
-    )
-
-    yield chunk
-
-    for a in audio:
-        yield a
-
-    yield '--%s--\r\n' % boundary
-    logging.debug('Finished sending speech to Alexa Voice Service')
 
 
 class Alexa:
@@ -103,15 +50,118 @@ class Alexa:
 
         return self.access_token
 
+    @staticmethod
+    def generate(audio, boundary):
+        """
+        Generate a iterator for chunked transfer-encoding request of Alexa Voice Service
+        Args:
+            audio: raw 16 bit LSB audio data
+            boundary: boundary of multipart content
+
+        Returns:
+
+        """
+        logging.debug('Start sending speech to Alexa Voice Service')
+        chunk = '--%s\r\n' % boundary
+        chunk += (
+            'Content-Disposition: form-data; name="request"\r\n'
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n'
+        )
+
+        d = {
+            "messageHeader": {
+                "deviceContext": [{
+                    "name": "playbackState",
+                    "namespace": "AudioPlayer",
+                    "payload": {
+                        "streamId": "",
+                        "offsetInMilliseconds": "0",
+                        "playerActivity": "IDLE"
+                    }
+                }]
+            },
+            "messageBody": {
+                "profile": "alexa-close-talk",
+                "locale": "en-us",
+                "format": "audio/L16; rate=16000; channels=1"
+            }
+        }
+
+        yield chunk + json.dumps(d) + '\r\n'
+
+        chunk = '--%s\r\n' % boundary
+        chunk += (
+            'Content-Disposition: form-data; name="audio"\r\n'
+            'Content-Type: audio/L16; rate=16000; channels=1\r\n\r\n'
+        )
+
+        yield chunk
+
+        for a in audio:
+            yield a
+
+        yield '--%s--\r\n' % boundary
+        logging.debug('Finished sending speech to Alexa Voice Service')
+
+    @staticmethod
+    def pack(audio, boundary):
+        logging.debug('Start sending speech to Alexa Voice Service')
+        body = '--%s\r\n' % boundary
+        body += (
+            'Content-Disposition: form-data; name="request"\r\n'
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n'
+        )
+
+        d = {
+            "messageHeader": {
+                "deviceContext": [{
+                    "name": "playbackState",
+                    "namespace": "AudioPlayer",
+                    "payload": {
+                        "streamId": "",
+                        "offsetInMilliseconds": "0",
+                        "playerActivity": "IDLE"
+                    }
+                }]
+            },
+            "messageBody": {
+                "profile": "alexa-close-talk",
+                "locale": "en-us",
+                "format": "audio/L16; rate=16000; channels=1"
+            }
+        }
+
+        body += json.dumps(d) + '\r\n'
+
+        body += '--%s\r\n' % boundary
+        body += (
+            'Content-Disposition: form-data; name="audio"\r\n'
+            'Content-Type: audio/L16; rate=16000; channels=1\r\n\r\n'
+        )
+
+        body += audio
+
+        body += '--%s--\r\n' % boundary
+
+        return body
+
     def recognize(self, audio):
         url = 'https://access-alexa-na.amazon.com/v1/avs/speechrecognizer/recognize'
         boundary = 'this-is-a-boundary'
-        headers = {
-            'Authorization': 'Bearer %s' % self.get_token(),
-            'Content-Type': 'multipart/form-data; boundary=%s' % boundary,
-            'Transfer-Encoding': 'chunked',
-        }
-        data = generate(audio, boundary)
+        if isinstance(audio, types.GeneratorType):
+            headers = {
+                'Authorization': 'Bearer %s' % self.get_token(),
+                'Content-Type': 'multipart/form-data; boundary=%s' % boundary,
+                'Transfer-Encoding': 'chunked',
+            }
+            data = self.generate(audio, boundary)
+        else:
+            headers = {
+                'Authorization': 'Bearer %s' % self.get_token(),
+                'Content-Type': 'multipart/form-data; boundary=%s' % boundary,
+            }
+            data = self.pack(audio, boundary)
+
         with closing(self.session.post(url, headers=headers, data=data, timeout=60, stream=True)) as r:
             if r.status_code != 200:
                 raise Exception("Failed to recognize. HTTP status code {}".format(r.status_code))
