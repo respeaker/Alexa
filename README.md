@@ -34,22 +34,22 @@ Alexa will be installed at the lasest firmware of ReSpeaker. If the command `ale
 
   ```
   cd /tmp
-  wget https://github.com/respeaker/get_started_with_respeaker/raw/master/files/alexa_2016-12-16_ramips_24kec.ipk
-  opkg install alexa_2016-12-16_ramips_24kec.ipk
+  wget https://github.com/respeaker/get_started_with_respeaker/raw/master/files/alexa_2017-01-18_ramips_24kec.ipk
+  opkg install alexa_2017-01-18_ramips_24kec.ipk
   ```
 
 2. Run `alexa` or `/etc/init.d/alexa start` to start Alexa Voice Service
 
-  If got an error "IOError: [Errno -9996] Invalid input device (no default output device)", it may be alexa already runs in the background (`/etc/init.d/alexa stop` will stop it)
-
-3. At the first time, you need to autherize the application.
+3. At the first time, you need to authorize the application.
 
   Connect ReSpeaker's Access Point, go to [http://192.168.100.1:3000]([http://192.168.100.1:3000) and tt will redirect you to Amazon to sign up or login in.
 
 4. Run `python alexa.py` to interact with Alexa.
 
->Note: if you get error `IOError: [Errno -9998] Invalid number of channels`, It's likely that `mopidy-hallo` is running and using the audio input channel.
+>Note: if you get error `IOError: [Errno -9998] Invalid number of channels`, It's likely that `mopidy-hallo` or `alexa` is running and using the audio input channel.
 >You can stop `mopidy` by running `/etc/init.d/mopidy stop`. `/etc/init.d/mopidy disable` will disable it to auto-run.
+>`/etc/init.d/alexa start` will run `alexa` on background. 
+
 
 ### Credits
 + [AlexaPi](https://github.com/sammachin/AlexaPi).
