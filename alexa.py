@@ -1,32 +1,37 @@
-import os
-import re
-import time
-from monotonic import monotonic
+import email
 import json
+import logging
 import platform
-from threading import Event, Thread
+import signal
 import subprocess
 import types
-import logging
-from contextlib import closing
+from threading import Event
 
 import requests
-
-from creds import Client_ID, Client_Secret, refresh_token
+from monotonic import monotonic
 from respeaker import Microphone
 
+from creds import Client_ID, Client_Secret, refresh_token
 
 logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__file__)
+
+if platform.machine() == 'mips':
+    mp3_player = 'madplay -o wave:- - | aplay -M'
+else:
+    mp3_player = 'ffplay -autoexit -nodisp -loglevel quiet -'
 
 
 class Alexa:
     """
     Provide Alexa Voice Service based on API v1
     """
-    def __init__(self):
+
+    def __init__(self, mic=None):
         self.access_token = None
         self.expire_time = None
         self.session = requests.Session()
+        self.mic = mic
 
     def get_token(self):
         if self.expire_time is None or monotonic() > self.expire_time:
@@ -61,7 +66,7 @@ class Alexa:
         Returns:
 
         """
-        logging.debug('Start sending speech to Alexa Voice Service')
+        logger.debug('Start sending speech to Alexa Voice Service')
         chunk = '--%s\r\n' % boundary
         chunk += (
             'Content-Disposition: form-data; name="request"\r\n'
@@ -101,11 +106,11 @@ class Alexa:
             yield a
 
         yield '--%s--\r\n' % boundary
-        logging.debug('Finished sending speech to Alexa Voice Service')
+        logger.debug('Finished sending speech to Alexa Voice Service')
 
     @staticmethod
     def pack(audio, boundary):
-        logging.debug('Start sending speech to Alexa Voice Service')
+        logger.debug('Start sending speech to Alexa Voice Service')
         body = '--%s\r\n' % boundary
         body += (
             'Content-Disposition: form-data; name="request"\r\n'
@@ -162,45 +167,80 @@ class Alexa:
             }
             data = self.pack(audio, boundary)
 
-        with closing(self.session.post(url, headers=headers, data=data, timeout=60, stream=True)) as r:
-            if r.status_code != 200:
-                raise Exception("Failed to recognize. HTTP status code {}".format(r.status_code))
+        r = self.session.post(url, headers=headers, data=data, timeout=20)
+        self.process_response(r)
 
-            for v in r.headers['content-type'].split(";"):
-                if re.match('.*boundary.*', v):
-                    boundary = v.split("=")[1]
+    def process_response(self, response):
+        logger.debug("Processing Request Response...")
 
-            if not boundary:
-                logging.warn('No boundary is found in headers')
-                return
+        if response.status_code == 200:
+            data = "Content-Type: " + response.headers['content-type'] + '\r\n\r\n' + response.content
+            msg = email.message_from_string(data)
+            for payload in msg.get_payload():
+                if payload.get_content_type() == "application/json":
+                    j = json.loads(payload.get_payload())
+                    logger.debug("JSON String Returned: %s", json.dumps(j, indent=2))
+                elif payload.get_content_type() == "audio/mpeg":
+                    logger.debug('Play ' + payload.get('Content-ID').strip("<>"))
 
-            content = r.iter_content(chunk_size=4096)
-            prefix = next(content)
-            position = prefix.find(boundary, len(boundary))   # skip first boundary
-            if position < 0:
-                logging.warn('No boundary is found. Invalid format')
-                return
+                    p = subprocess.Popen(mp3_player, stdin=subprocess.PIPE, shell=True)
+                    p.stdin.write(payload.get_payload())
+                    p.stdin.close()
+                    p.wait()
+                else:
+                    logger.debug("NEW CONTENT TYPE RETURNED: %s", payload.get_content_type())
 
-            start = position + len(boundary) + 2              # boundary + cr + lf
-            speech = prefix[start:]
+            # Now process the response
+            if 'directives' in j['messageBody']:
+                if len(j['messageBody']['directives']) == 0:
+                    logger.debug("0 Directives received")
 
-            if platform.machine() == 'mips':
-                command = 'madplay -o wave:- - | aplay -M'
-            else:
-                command = 'ffplay -autoexit -nodisp -'
+                for directive in j['messageBody']['directives']:
+                    if directive['namespace'] == 'SpeechSynthesizer':
+                        if directive['name'] == 'speak':
+                            logger.debug(
+                                "SpeechSynthesizer audio: " + directive['payload']['audioContent'].lstrip('cid:'))
+                    elif directive['namespace'] == 'SpeechRecognizer':
+                        if directive['name'] == 'listen':
+                            timeout_ms = directive['payload']['timeoutIntervalInMillis']
+                            logger.debug("Speech Expected, timeout in: %sms", timeout_ms)
 
-            p = subprocess.Popen(command, stdin=subprocess.PIPE, shell=True)
-            p.stdin.write(speech)
-            for speech in content:
-                p.stdin.write(speech)
+                            self.recognize(self.mic.listen(timeout=timeout_ms / 1000))
 
-            p.stdin.close()
-            p.wait()
+                    elif directive['namespace'] == 'AudioPlayer':
+                        if directive['name'] == 'play':
+                            for stream in directive['payload']['audioItem']['streams']:
+                                logger.debug('AudioPlayer audio:' + stream['streamUrl'].lstrip('cid:'))
+
+                    elif directive['namespace'] == "Speaker":
+                        # speaker control such as volume
+                        if directive['name'] == 'SetVolume':
+                            vol_token = directive['payload']['volume']
+                            type_token = directive['payload']['adjustmentType']
+                            if type_token == 'relative':
+                                logger.debug('relative volume adjust')
+
+                            logger.debug("new volume = %s", vol_token)
+
+            # Additional Audio Iten
+            elif 'audioItem' in j['messageBody']:
+                pass
+        elif response.status_code == 204:
+            logger.debug("Request Response is null (This is OKAY!)")
+        else:
+            logger.info("(process_response Error) Status Code: %s", response.status_code)
+            response.connection.close()
 
 
-def task(quit_event):
+def main():
+    quit_event = Event()
     mic = Microphone(quit_event=quit_event)
-    alexa = Alexa()
+    alexa = Alexa(mic)
+
+    def on_quit(signum, frame):
+        quit_event.set()
+
+    signal.signal(signal.SIGINT, on_quit)
 
     while not quit_event.is_set():
         if mic.wakeup(keyword='alexa'):
@@ -212,20 +252,6 @@ def task(quit_event):
                 logging.warn(e.message)
 
     mic.close()
-
-
-def main():
-    quit_event = Event()
-    thread = Thread(target=task, args=(quit_event,))
-    thread.start()
-    while True:
-        try:
-            time.sleep(1)
-        except KeyboardInterrupt:
-            break
-
-    quit_event.set()
-    thread.join()
     logging.debug('Mission completed')
 
 
