@@ -20,11 +20,12 @@ To use Alexe Voice Service with ReSpeaker.
 2. Run `git clone https://github.com/respeaker/Alexa.git && cd Alexa`
 3. Rename `example_creds.py` to `creds.py` and fill `ProductID`, `Security_Profile_Description`, `Security_Profile_ID`, `Client_ID` and `Client_Secret` with your Alexa device information.
 4. Run `sudo pip install cherrypy requests pyaudio webrtcvad pocketsphinx respeaker` to get required python packages.
-5. Run `python auth_web.py` and open [http://localhost:3000](http://localhost:3000)
+5. You might also need these depdencies if you got errors at the above step: `sudo apt-get install python-dev portaudio19-dev swig libpulse-dev`. Then rerun step 4.
+6. Run `python auth_web.py` and open [http://localhost:3000](http://localhost:3000)
 
     It will redirect you to Amazon to sign in.
 
-6. Run `python alexa.py` to interact with Alexa.
+7. Run `python alexa.py` to interact with Alexa.
 
 
 ### On ReSpeaker
