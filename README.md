@@ -1,6 +1,8 @@
 Alexa
 =====
 
+# New version is at https://github.com/respeaker/avs which uses the latest AVS HTTP/2 API, is more responsive and has more functions.
+
 To use Alexe Voice Service with ReSpeaker.
 
 
